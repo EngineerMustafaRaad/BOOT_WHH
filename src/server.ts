@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'node:path';
+import fs from 'node:fs';
 import { config } from './config/index.js';
 import { connectDatabase } from './database/prisma.js';
 import { rulesCache } from './moderation/cache.js';
@@ -13,9 +15,7 @@ import { logger } from './utils/logger.js';
 
 const app = express();
 
-app.get('/', (req, res) => {
-  res.send('البوت شغال 100% 🚀');
-});
+const dashboardPath = path.resolve(process.cwd(), 'frontend-dist');
 
 // Security Middlewares
 app.use(helmet());
@@ -28,6 +28,20 @@ app.use(
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+if (fs.existsSync(dashboardPath)) {
+  app.use(express.static(dashboardPath));
+}
+
+app.get('/', (req, res) => {
+  const dashboardIndex = path.join(dashboardPath, 'index.html');
+  if (fs.existsSync(dashboardIndex)) {
+    res.sendFile(dashboardIndex);
+    return;
+  }
+
+  res.send('البوت شغال 100% 🚀');
+});
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
