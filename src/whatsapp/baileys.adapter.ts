@@ -1,5 +1,6 @@
 import { IWhatsAppAdapter, MessageHandler } from './adapter.interface.js';
 import { IncomingMessage } from '../types/index.js';
+import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 import path from 'path';
 import fs from 'fs';
@@ -21,9 +22,8 @@ export class BaileysAdapter implements IWhatsAppAdapter {
         fs.mkdirSync(this.authFolder, { recursive: true });
       }
 
-      // Dynamic imports for Baileys and QR generator
+      // Dynamic imports for Baileys
       const baileys = await import('@whiskeysockets/baileys');
-      const qrcode = (await import('qrcode-terminal')).default;
       const pino = (await import('pino')).default;
 
       const makeWASocket = baileys.default || baileys.makeWASocket;
@@ -43,17 +43,32 @@ export class BaileysAdapter implements IWhatsAppAdapter {
 
       this.socket.ev.on('creds.update', saveCreds);
 
+      let pairingCodeRequested = false;
+
       this.socket.ev.on('connection.update', async (update: any) => {
         const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
+        if (qr && !config.BAILEYS_PHONE_NUMBER) {
           this.qrCodeString = qr;
-          console.log('\n======================================================');
-          console.log('📱 SCAN THIS QR CODE WITH YOUR WHATSAPP CAMERA:');
-          console.log('======================================================\n');
-          qrcode.generate(qr, { small: true });
-          console.log('\n======================================================\n');
-          logger.info('QR Code generated. Please scan with WhatsApp (Linked Devices).');
+          logger.info('QR Code generated. Set BAILEYS_PHONE_NUMBER to use a pairing code instead.');
+        }
+
+        if (config.BAILEYS_PHONE_NUMBER && !pairingCodeRequested && (connection === 'connecting' || qr)) {
+          pairingCodeRequested = true;
+          const phoneNumber = config.BAILEYS_PHONE_NUMBER.replace(/\D/g, '');
+
+          if (phoneNumber.length < 8) {
+            pairingCodeRequested = false;
+            logger.error('BAILEYS_PHONE_NUMBER must include the international country code, for example 9665xxxxxxxx.');
+          } else {
+            try {
+              const pairingCode = await this.socket.requestPairingCode(phoneNumber);
+              logger.info(`\n======================================================\n📱 WhatsApp Pairing Code: ${pairingCode}\nOpen WhatsApp > Linked devices > Link a device > Link with phone number, then enter this code.\n======================================================`);
+            } catch (error) {
+              pairingCodeRequested = false;
+              logger.error('Failed to generate WhatsApp pairing code:', { error });
+            }
+          }
         }
 
         if (connection === 'close') {
@@ -63,6 +78,7 @@ export class BaileysAdapter implements IWhatsAppAdapter {
           logger.warn(`Baileys connection closed. Reason: ${statusCode}. Reconnecting: ${shouldReconnect}`);
 
           if (shouldReconnect) {
+            pairingCodeRequested = false;
             setTimeout(() => this.connect(), 5000);
           } else {
             logger.error('WhatsApp session logged out. Delete baileys_auth_info and restart to scan new QR.');
@@ -221,6 +237,8 @@ export class BaileysAdapter implements IWhatsAppAdapter {
       provider: this.name,
       details: this.isConnected
         ? 'Connected and listening for group events'
+        : config.BAILEYS_PHONE_NUMBER
+        ? 'Waiting for WhatsApp pairing code'
         : this.qrCodeString
         ? 'Waiting for QR Code scan'
         : 'Socket initializing...',

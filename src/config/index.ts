@@ -18,6 +18,7 @@ const envSchema = z.object({
   ADMIN_DEFAULT_PASSWORD: z.string().min(8).default('AdminSecurePassword123!'),
 
   WHATSAPP_PROVIDER: z.enum(['simulator', 'cloud_api', 'baileys']).default('simulator'),
+  BAILEYS_PHONE_NUMBER: z.string().optional().default(''),
 
   WHATSAPP_ACCESS_TOKEN: z.string().optional().default(''),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(''),
