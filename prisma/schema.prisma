@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("ADMIN")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model Group {
+  id               String         @id @default(uuid())
+  groupJid         String         @unique @map("group_jid")
+  name             String
+  isActive         Boolean        @default(true) @map("is_active")
+  participantCount Int            @default(0) @map("participant_count")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  settings         GroupSettings?
+  violations       Violation[]
+
+  @@map("groups")
+}
+
+model GroupSettings {
+  id                String   @id @default(uuid())
+  groupId           String   @unique @map("group_id")
+  group             Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  moderationEnabled Boolean  @default(true) @map("moderation_enabled")
+  deleteMessages    Boolean  @default(true) @map("delete_messages")
+  warnUsers         Boolean  @default(true) @map("warn_users")
+  notifyAdmin       Boolean  @default(true) @map("notify_admin")
+  maxViolations     Int      @default(3) @map("max_violations")
+  autoAction        String   @default("WARN") @map("auto_action")
+  allowLinks        Boolean  @default(false) @map("allow_links")
+  allowedDomains    String   @default("youtube.com,facebook.com,instagram.com,twitter.com,x.com") @map("allowed_domains")
+  allowAds          Boolean  @default(false) @map("allow_ads")
+  allowMentions     Boolean  @default(true) @map("allow_mentions")
+  aiModeration      Boolean  @default(false) @map("ai_moderation")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("group_settings")
+}
+
+model ForbiddenWord {
+  id             String   @id @default(uuid())
+  word           String   @unique
+  normalizedWord String   @map("normalized_word")
+  category       String   @default("CUSTOM")
+  severity       String   @default("MEDIUM")
+  enabled        Boolean  @default(true)
+  isRegex        Boolean  @default(false) @map("is_regex")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([normalizedWord])
+  @@map("forbidden_words")
+}
+
+model WordException {
+  id             String   @id @default(uuid())
+  word           String   @unique
+  normalizedWord String   @map("normalized_word")
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("word_exceptions")
+}
+
+model Member {
+  id              String      @id @default(uuid())
+  userJid         String      @unique @map("user_jid")
+  phoneNumber     String?     @map("phone_number")
+  name            String
+  totalViolations Int         @default(0) @map("total_violations")
+  isBlocked       Boolean     @default(false) @map("is_blocked")
+  lastViolationAt DateTime?   @map("last_violation_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  violations      Violation[]
+
+  @@map("members")
+}
+
+model Violation {
+  id           String   @id @default(uuid())
+  groupId      String   @map("group_id")
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupJid     String   @map("group_jid")
+  groupName    String   @map("group_name")
+  userId       String   @map("user_id")
+  member       Member   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userJid      String   @map("user_jid")
+  userName     String   @map("user_name")
+  messageId    String   @map("message_id")
+  messageText  String   @map("message_text")
+  detectedRule String   @map("detected_rule")
+  category     String   @default("CUSTOM")
+  severity     String   @default("MEDIUM")
+  actionTaken  String   @map("action_taken")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("violations")
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String   @default("INFO")
+  message   String
+  context   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("system_logs")
+}

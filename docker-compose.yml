@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: wa_moderator_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: wa_moderator
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend & WhatsApp Moderation Engine
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wa_moderator_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://postgres:postgrespassword@postgres:5432/wa_moderator?schema=public"
+      JWT_SECRET: "prod-secret-jwt-key-whatsapp-moderator-2026"
+      JWT_EXPIRES_IN: "7d"
+      ADMIN_DEFAULT_EMAIL: "admin@moderator.local"
+      ADMIN_DEFAULT_PASSWORD: "AdminSecurePassword123!"
+      WHATSAPP_PROVIDER: "simulator" # simulator | cloud_api | baileys
+      AI_MODERATION_ENABLED: "false"
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+    ports:
+      - "4000:4000"
+
+  # Frontend Dashboard Development / Nginx Service (optional standalone)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wa_moderator_frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
