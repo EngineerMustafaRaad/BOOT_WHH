@@ -17,10 +17,10 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+COPY --from=backend-builder /app/node_modules ./node_modules
 COPY package*.json ./
-COPY prisma ./prisma
-RUN npm ci --omit=dev
 COPY --from=backend-builder /app/dist ./dist
 COPY --from=dashboard-builder /app/frontend/dist ./frontend-dist
+COPY prisma ./prisma
 EXPOSE 4000
 CMD ["node", "dist/server.js"]
